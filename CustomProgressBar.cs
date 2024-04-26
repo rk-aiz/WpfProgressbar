@@ -199,11 +199,14 @@ namespace WpfProgressbar
         private bool _glowAnimating = false;
         private void UpdateIndeterminateAnimation(bool force = false)
         {
-            if (_glowTransform == null || ActualWidth == 0) return;
-
             if (!force && _glowAnimating) return;
 
-            if (IsVisible && IsIndeterminate)
+            if (_glowTransform == null) {
+                _glowAnimating = false;
+                return;
+            }
+
+            if (IsVisible && IsIndeterminate && ActualWidth != 0)
             {
                 _glowAnimating = true;
                 var anim = new DoubleAnimation
