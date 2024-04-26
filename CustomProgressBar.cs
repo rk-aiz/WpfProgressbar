@@ -16,6 +16,7 @@ using System.Reflection;
 using Microsoft.Windows.Themes;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace WpfProgressbar
 {
@@ -127,12 +128,8 @@ namespace WpfProgressbar
         private static void ProgressStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             CustomProgressBar source = (CustomProgressBar)d;
-
-            if ((ProgressState)e.NewValue != (ProgressState)e.OldValue)
-            {
-                source.UpdateAnimation();
-                source.SetGlowElementBrush();
-            }
+            source.UpdateAnimation();
+            source.SetGlowElementBrush();
         }
 
         private void UpdateAnimation()
@@ -159,7 +156,7 @@ namespace WpfProgressbar
                     anim.KeyFrames.Add(new DiscreteDoubleKeyFrame(1,
                         KeyTime.FromTimeSpan(TimeSpan.FromSeconds(500)))
                     );
-                    anim.KeyFrames.Add(new SplineDoubleKeyFrame(0.6,
+                    anim.KeyFrames.Add(new SplineDoubleKeyFrame(0.5,
                         KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(800)))
                     );
                     _glow.BeginAnimation(OpacityProperty, anim);
@@ -204,7 +201,7 @@ namespace WpfProgressbar
 
         private void UpdateStripeAnimation()
         {
-            if (ProgressState == ProgressState.Normal)
+            if (ProgressState == ProgressState.Normal && EnableStripeAnimation)
             {
                 var anim = new DoubleAnimation
                 {
@@ -332,6 +329,10 @@ namespace WpfProgressbar
 
         private static Style CreateStyle()
         {
+            var border = new FrameworkElementFactory(typeof(Border), "Border");
+            border.SetValue(BorderBrushProperty, new TemplateBindingExtension(BorderBrushProperty));
+            border.SetValue(BorderThicknessProperty, new TemplateBindingExtension(BorderThicknessProperty));
+
             var percentText = new FrameworkElementFactory(typeof(TextBlock), "Percent");
             percentText.SetBinding(TextBlock.TextProperty, new Binding("Value")
             {
@@ -358,25 +359,20 @@ namespace WpfProgressbar
 
             var partTrack = new FrameworkElementFactory(typeof(Rectangle), "PART_Track");
             partTrack.SetValue(Shape.FillProperty, new TemplateBindingExtension(BackgroundProperty));
-            partTrack.SetValue(Shape.StrokeThicknessProperty, new TemplateBindingExtension(BorderThicknessProperty));
 
             var partStripe = new FrameworkElementFactory(typeof(Rectangle), "PART_Stripe");
             partStripe.SetValue(VisibilityProperty, Visibility.Collapsed);
 
-            var border = new FrameworkElementFactory(typeof(Rectangle), "Border");
-            border.SetValue(Shape.StrokeProperty, new TemplateBindingExtension(BorderBrushProperty));
-            border.SetValue(Shape.StrokeThicknessProperty, new TemplateBindingExtension(BorderThicknessProperty));
-
             var root = new FrameworkElementFactory(typeof(Grid), "TemplateRoot");
             root.SetValue(MinHeightProperty, 14.0);
             root.SetValue(MinWidthProperty, 20.0);
-            root.AppendChild(border);
             root.AppendChild(partTrack);
             root.AppendChild(partStripe);
             root.AppendChild(partIndicator);
             root.AppendChild(partGlowRect);
             root.AppendChild(percentText);
             root.AppendChild(progressLabel);
+            root.AppendChild(border);
 
             var isIndeterminate = new Trigger{ Property = ProgressStateProperty, Value = ProgressState.Indeterminate };
             isIndeterminate.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed, "Percent"));
@@ -411,6 +407,7 @@ namespace WpfProgressbar
             style.Setters.Add(new Setter(TemplateProperty, ct));
             style.Setters.Add(new Setter(BorderThicknessProperty, new Thickness(1.0)));
             style.Setters.Add(new Setter(HeightProperty, 20.0));
+            style.Setters.Add(new Setter(SnapsToDevicePixelsProperty, true));
             return style;
         }
 
@@ -499,7 +496,6 @@ namespace WpfProgressbar
                                         new PropertyMetadata(new SolidColorBrush(Color.FromArgb(255, 20, 255, 255))));
 
         #endregion DependencyProperties
-
 
         public bool IsIndeterminate
         {

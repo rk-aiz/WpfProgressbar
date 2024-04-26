@@ -31,6 +31,7 @@
             Margin="5, 20"
             Foreground="#FF8050D0"
             Background="#FFE9AFFF"
+            BorderThickness="0"
             SmoothValue="{Binding Progress}"
             LabelText="{Binding ProgressLabel}"
             ProgressState="{Binding ProgressState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
