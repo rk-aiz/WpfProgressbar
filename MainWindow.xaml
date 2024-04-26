@@ -17,11 +17,13 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
         <local:CustomProgressBar
             Grid.ColumnSpan="2"
             Margin="5, 20"
+            Visibility="{Binding Visibility}"
             Value="{Binding Progress}"
             LabelText="{Binding ProgressLabel}"
             ProgressState="{Binding ProgressState, Mode=OneWay}"/>
@@ -29,11 +31,12 @@
         <local:CustomProgressBar
             Grid.Row="1" Grid.ColumnSpan="2"
             Margin="5, 20"
+            Visibility="{Binding Visibility}"
             Foreground="#FF8050D0"
             Background="#FFE9AFFF"
             BorderThickness="0"
+            TextBrush="#FF002050"
             SmoothValue="{Binding Progress}"
-            LabelText="{Binding ProgressLabel}"
             ProgressState="{Binding ProgressState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
         <Button
@@ -69,5 +72,22 @@
             FontSize="16"
             Text="{Binding Progress,
                    StringFormat=(Progress : {0:N2} %)}"/>
+
+        <Button
+            Grid.Row="4"
+            Width="140"
+            Margin="10"
+            HorizontalAlignment="Right"
+            Click="VisibilityButton_Click"
+            Content="Change Visibility"/>
+
+        <TextBlock
+            Grid.Row="4" Grid.Column="1"
+            Margin="10"
+            HorizontalAlignment="Left"
+            Foreground="White"
+            FontSize="16"
+            Text="{Binding Visibility,
+                   StringFormat=(Visibility : {0})}"/>
     </Grid>
 </Window>

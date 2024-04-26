@@ -45,10 +45,18 @@ namespace WpfProgressbar
         private TranslateTransform _glowTransform = new TranslateTransform();
         private TranslateTransform _stripeTransform = new TranslateTransform();
         private ScaleTransform _indicatorTransform = new ScaleTransform(0, 1);
-        private FrameworkElement? _track;
-        private FrameworkElement? _indicator;
-        private FrameworkElement? _glow;
-        private FrameworkElement? _stripe;
+
+        private static Geometry _stripeGeometry = PathGeometry.Parse(
+            "M 40 0 L 40 20 L 20 40 L 0 40 Z M 0 0 L 20 0 L 0 20 Z");
+        private static DoubleAnimationBase _stripeAnimation;
+        private AnimationClock _stripeAnimationClock;
+
+        private static DoubleAnimationBase _completedAnimation;
+
+        private FrameworkElement _track;
+        private FrameworkElement _indicator;
+        private FrameworkElement _glow;
+        private FrameworkElement _stripe;
 
         #endregion Data
 
@@ -62,6 +70,7 @@ namespace WpfProgressbar
             // Set default to 100.0
             MaximumProperty.OverrideMetadata(typeof(CustomProgressBar), new FrameworkPropertyMetadata(100.0));
 
+            // Set initial value of Foreground. Changing [Foreground] triggers re-creation of a glow brush.
             ForegroundProperty.OverrideMetadata(typeof(CustomProgressBar), new FrameworkPropertyMetadata(
                 new SolidColorBrush(Color.FromArgb(255, 1, 140, 200)),
                 (d, e) => { ((CustomProgressBar)d).SetGlowElementBrush(); }
@@ -69,6 +78,7 @@ namespace WpfProgressbar
                 Inherits = false
             });
 
+            // Set initial value of Background. Changing [Background] triggers re-creation of a stripe brush.
             BackgroundProperty.OverrideMetadata(typeof(CustomProgressBar), new FrameworkPropertyMetadata(
                 new SolidColorBrush(Color.FromArgb(25, 127, 127, 127)),
                 (d, e) => { ((CustomProgressBar)d).SetStripeElementBrush(); }
@@ -80,6 +90,33 @@ namespace WpfProgressbar
 
             StyleProperty.OverrideMetadata(typeof(CustomProgressBar),
                 new FrameworkPropertyMetadata(CreateStyle()));
+
+            _stripeAnimation = new DoubleAnimation
+            {
+                From = 0.0,
+                To = 40,
+                Duration = new Duration(TimeSpan.FromMilliseconds(500)),
+                FillBehavior = FillBehavior.HoldEnd,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+
+            var anim = new DoubleAnimationUsingKeyFrames
+            {
+                Duration = TimeSpan.FromMilliseconds(1000),
+            };
+            anim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0,
+                KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0)))
+            );
+            anim.KeyFrames.Add(new SplineDoubleKeyFrame(1,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300)))
+            );
+            anim.KeyFrames.Add(new DiscreteDoubleKeyFrame(1,
+                KeyTime.FromTimeSpan(TimeSpan.FromSeconds(600)))
+            );
+            anim.KeyFrames.Add(new SplineDoubleKeyFrame(0.35,
+                KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1000)))
+            );
+            _completedAnimation = anim;
         }
 
         public CustomProgressBar()
@@ -89,6 +126,10 @@ namespace WpfProgressbar
 
             IsVisibleChanged += (s, e) => { UpdateAnimation(); };
             Loaded += (s, e) => { UpdateIndicator(); };
+
+            // Prepare animation clock and controller
+            _stripeAnimationClock = _stripeAnimation.CreateClock();
+            _stripeTransform.ApplyAnimationClock(TranslateTransform.XProperty, _stripeAnimationClock, HandoffBehavior.Compose);
         }
 
         #endregion Constructor
@@ -110,17 +151,17 @@ namespace WpfProgressbar
         // Set the width of the indicator
         private void UpdateIndicator()
         {
-            if (_track != null && _indicator != null)
+            if (_indicatorTransform != null)
             {
                 double min = Minimum;
                 double max = Maximum;
                 double val = Value;
 
-                // When maximum <= minimum, have the indicator stretch the
+                // When maximum == minimum, have the indicator stretch the
                 // whole length of track 
-                double percent = max <= min ? 1.0 : (val - min) / (max - min);
+                double scale = max == min ? 1.0 : (val - min) / (max - min);
 
-                _indicatorTransform.ScaleX = percent;
+                _indicatorTransform.ScaleX = scale;
             }
         }
 
@@ -130,36 +171,17 @@ namespace WpfProgressbar
             CustomProgressBar source = (CustomProgressBar)d;
             source.UpdateAnimation();
             source.SetGlowElementBrush();
+            source.UpdateCompletedBrush();
         }
 
-        private void UpdateAnimation()
+        private void UpdateCompletedBrush()
         {
-            UpdateStripeAnimation();
-            UpdateIndeterminateAnimation();
-
             // CompletedBrush fade-in animation
             if (_glow != null)
             {
                 if (ProgressState == ProgressState.Completed)
                 {
-                    var anim = new DoubleAnimationUsingKeyFrames
-                    {
-                        FillBehavior = FillBehavior.HoldEnd,
-                        Duration = TimeSpan.FromMilliseconds(800),
-                    };
-                    anim.KeyFrames.Add(new DiscreteDoubleKeyFrame(0,
-                        KeyTime.FromTimeSpan(TimeSpan.FromSeconds(0)))
-                    );
-                    anim.KeyFrames.Add(new SplineDoubleKeyFrame(1,
-                        KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(300)))
-                    );
-                    anim.KeyFrames.Add(new DiscreteDoubleKeyFrame(1,
-                        KeyTime.FromTimeSpan(TimeSpan.FromSeconds(500)))
-                    );
-                    anim.KeyFrames.Add(new SplineDoubleKeyFrame(0.5,
-                        KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(800)))
-                    );
-                    _glow.BeginAnimation(OpacityProperty, anim);
+                    _glow.BeginAnimation(OpacityProperty, _completedAnimation);
                 }
                 else
                 {
@@ -169,14 +191,20 @@ namespace WpfProgressbar
             }
         }
 
+        private void UpdateAnimation()
+        {
+            UpdateStripeAnimation();
+            UpdateIndeterminateAnimation();
+        }
+
         private bool _glowAnimating = false;
         private void UpdateIndeterminateAnimation(bool force = false)
         {
-            if (_glow == null || _glowTransform == null) return;
+            if (_glowTransform == null) return;
 
             if (!force && _glowAnimating) return;
 
-            if (IsVisible && ProgressState == ProgressState.Indeterminate)
+            if (IsVisible && IsIndeterminate)
             {
                 _glowAnimating = true;
                 var anim = new DoubleAnimation
@@ -186,15 +214,13 @@ namespace WpfProgressbar
                     Duration = TimeSpan.FromMilliseconds(2000),
                 };
                 anim.Completed += (s, e) => {
-                    if (IsIndeterminate)
-                        UpdateIndeterminateAnimation(true);
-                    else
-                        _glowAnimating = false;
+                    UpdateIndeterminateAnimation(true);
                 };
                 _glowTransform.BeginAnimation(TranslateTransform.XProperty, anim);
             }
             else
             {
+                _glowAnimating = false;
                 _glowTransform.BeginAnimation(TranslateTransform.XProperty, null);
             }
         }
@@ -203,25 +229,14 @@ namespace WpfProgressbar
         {
             if (ProgressState == ProgressState.Normal && EnableStripeAnimation)
             {
-                var anim = new DoubleAnimation
-                {
-                    From = 0.0,
-                    To = 40,
-                    RepeatBehavior = RepeatBehavior.Forever,
-                    Duration = new Duration(TimeSpan.FromMilliseconds(500))
-                };
-                _stripeTransform.BeginAnimation(TranslateTransform.XProperty, anim, HandoffBehavior.Compose);
+                if (_stripeAnimationClock.IsPaused)
+                    _stripeAnimationClock.Controller.Resume();
+                else
+                    _stripeAnimationClock.Controller.Begin();
             }
-            else
+            else if (!_stripeAnimationClock.IsPaused)
             {
-                var anim = new DoubleAnimation
-                {
-                    By = 10,
-                    EasingFunction = new CircleEase { EasingMode = EasingMode.EaseOut },
-                    Duration = new Duration(TimeSpan.FromMilliseconds(500)),
-                    FillBehavior = FillBehavior.HoldEnd
-                };
-                _stripeTransform.BeginAnimation(TranslateTransform.XProperty, anim, HandoffBehavior.SnapshotAndReplace);
+                _stripeAnimationClock.Controller.Pause();
             }
         }
 
@@ -240,7 +255,7 @@ namespace WpfProgressbar
             _glow.InvalidateProperty(UIElement.OpacityMaskProperty);
             _glow.InvalidateProperty(Shape.FillProperty);
 
-            if (this.Foreground is SolidColorBrush)
+            if (Foreground is SolidColorBrush)
             {
                 // Create the glow brush based on [Foreground]
                 Color color = ((SolidColorBrush)this.Foreground).Color;
@@ -290,23 +305,13 @@ namespace WpfProgressbar
 
             var geometryDrawing = new GeometryDrawing
             {
-                Geometry = PathGeometry.Parse("M 40 0 L 40 20 L 20 40 L 0 40 Z M 0 0 L 20 0 L 0 20 Z")
+                Geometry = _stripeGeometry
             };
 
-            var stripeBrush = new DrawingBrush
-            {
-                TileMode = TileMode.Tile,
-                Stretch = Stretch.None,
-                Viewport = new Rect(0, 0, 40, 40),
-                ViewportUnits = BrushMappingMode.Absolute,
-                Transform = _stripeTransform,
-                Drawing = geometryDrawing
-            };
-
-            if (this.Background is SolidColorBrush)
+            if (Background is SolidColorBrush)
             {
                 // Create the stripe brush based on [Background]
-                Color basis = ((SolidColorBrush)this.Background).Color;
+                Color basis = ((SolidColorBrush)Background).Color;
                 Color color;
                 if (basis.R + basis.G + basis.B > 383)
                     color = Color.FromArgb(basis.A, (byte)(basis.R * 0.9), (byte)(basis.G * 0.9), (byte)(basis.B * 0.9));
@@ -318,10 +323,18 @@ namespace WpfProgressbar
             else
             {
                 geometryDrawing.Brush = new SolidColorBrush(Color.FromArgb(25, 0, 0, 0));
-
             }
 
-            stripeBrush.Drawing = geometryDrawing;
+            var stripeBrush = new DrawingBrush
+            {
+                TileMode = TileMode.Tile,
+                Stretch = Stretch.None,
+                Viewport = new Rect(0, 0, 40, 40),
+                ViewportUnits = BrushMappingMode.Absolute,
+                Transform = _stripeTransform,
+                Drawing = geometryDrawing
+            };
+
             _stripe.SetCurrentValue(Shape.FillProperty, stripeBrush);
         }
 
@@ -333,34 +346,39 @@ namespace WpfProgressbar
             border.SetValue(BorderBrushProperty, new TemplateBindingExtension(BorderBrushProperty));
             border.SetValue(BorderThicknessProperty, new TemplateBindingExtension(BorderThicknessProperty));
 
-            var percentText = new FrameworkElementFactory(typeof(TextBlock), "Percent");
-            percentText.SetBinding(TextBlock.TextProperty, new Binding("Value")
+            var percentBinding = new MultiBinding
             {
-                RelativeSource = RelativeSource.TemplatedParent,
+                Converter = PercentageConverter.I,
                 StringFormat = "{0:N1} %"
-            });
+            };
+            percentBinding.Bindings.Add(new Binding("Minimum") { RelativeSource = RelativeSource.TemplatedParent });
+            percentBinding.Bindings.Add(new Binding("Maximum") { RelativeSource = RelativeSource.TemplatedParent });
+            percentBinding.Bindings.Add(new Binding("Value") { RelativeSource = RelativeSource.TemplatedParent });
+
+            var percentText = new FrameworkElementFactory(typeof(TextBlock), "Percent");
+            percentText.SetBinding(TextBlock.TextProperty, percentBinding);
             percentText.SetValue(MarginProperty, new Thickness { Right = 20 });
             percentText.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Right);
             percentText.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
-            percentText.SetValue(ForegroundProperty, System.Windows.SystemColors.HighlightTextBrush);  // TODO change TemplateBinding
+            percentText.SetValue(ForegroundProperty, new TemplateBindingExtension(TextBrushProperty));
 
             var progressLabel = new FrameworkElementFactory(typeof(TextBlock), "Label");
             progressLabel.SetValue(TextBlock.TextProperty, new TemplateBindingExtension(LabelTextProperty));
             progressLabel.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Left);
             progressLabel.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
-            progressLabel.SetValue(ForegroundProperty, System.Windows.SystemColors.HighlightTextBrush); // TODO change TemplateBinding
+            progressLabel.SetValue(ForegroundProperty, new TemplateBindingExtension(TextBrushProperty));
             progressLabel.SetValue(MarginProperty, new Thickness { Left = 10.0 });
 
-            var partGlowRect = new FrameworkElementFactory(typeof(Rectangle), "PART_GlowRect");
+            var partGlowRect = new FrameworkElementFactory(typeof(Rectangle), GlowingRectTemplateName);
             partGlowRect.SetValue(VisibilityProperty, Visibility.Collapsed);
 
-            var partIndicator = new FrameworkElementFactory(typeof(Rectangle), "PART_Indicator");
+            var partIndicator = new FrameworkElementFactory(typeof(Rectangle), IndicatorTemplateName);
             partIndicator.SetValue(Shape.FillProperty, new TemplateBindingExtension(ForegroundProperty));
 
-            var partTrack = new FrameworkElementFactory(typeof(Rectangle), "PART_Track");
+            var partTrack = new FrameworkElementFactory(typeof(Rectangle), TrackTemplateName);
             partTrack.SetValue(Shape.FillProperty, new TemplateBindingExtension(BackgroundProperty));
 
-            var partStripe = new FrameworkElementFactory(typeof(Rectangle), "PART_Stripe");
+            var partStripe = new FrameworkElementFactory(typeof(Rectangle), StripeTemplateName);
             partStripe.SetValue(VisibilityProperty, Visibility.Collapsed);
 
             var root = new FrameworkElementFactory(typeof(Grid), "TemplateRoot");
@@ -376,23 +394,23 @@ namespace WpfProgressbar
 
             var isIndeterminate = new Trigger{ Property = ProgressStateProperty, Value = ProgressState.Indeterminate };
             isIndeterminate.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed, "Percent"));
-            isIndeterminate.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed, "PART_Indicator"));
-            isIndeterminate.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, "PART_GlowRect"));
+            isIndeterminate.Setters.Add(new Setter(VisibilityProperty, Visibility.Collapsed, IndicatorTemplateName));
+            isIndeterminate.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, GlowingRectTemplateName));
 
             var stripeAnimationTrigger = new MultiTrigger();
             stripeAnimationTrigger.Conditions.Add(new Condition(ProgressStateProperty, ProgressState.Normal));
             stripeAnimationTrigger.Conditions.Add(new Condition(EnableStripeAnimationProperty, true));
-            stripeAnimationTrigger.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, "PART_Stripe"));
+            stripeAnimationTrigger.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, StripeTemplateName));
 
             var pausedTrigger = new MultiTrigger();
             pausedTrigger.Conditions.Add(new Condition(ProgressStateProperty, ProgressState.Paused));
             pausedTrigger.Conditions.Add(new Condition(EnableStripeAnimationProperty, true));
-            pausedTrigger.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, "PART_Stripe"));
+            pausedTrigger.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, StripeTemplateName));
 
             var completedTrigger = new Trigger{ Property = ProgressStateProperty, Value = ProgressState.Completed };
-            completedTrigger.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, "PART_GlowRect"));
+            completedTrigger.Setters.Add(new Setter(VisibilityProperty, Visibility.Visible, GlowingRectTemplateName));
             completedTrigger.Setters.Add(new Setter(Shape.FillProperty,
-                new Binding("CompletedBrush") { RelativeSource = RelativeSource.TemplatedParent }, "PART_GlowRect"));
+                new Binding("CompletedBrush") { RelativeSource = RelativeSource.TemplatedParent }, GlowingRectTemplateName));
 
             var ct = new ControlTemplate(typeof(RangeBase))
             {
@@ -415,13 +433,22 @@ namespace WpfProgressbar
         {
             base.OnApplyTemplate();
 
-            _track = GetTemplateChild(TrackTemplateName) as FrameworkElement;
-            _indicator = GetTemplateChild(IndicatorTemplateName) as FrameworkElement;
-            _glow = GetTemplateChild(GlowingRectTemplateName) as FrameworkElement;
-            _stripe = GetTemplateChild(StripeTemplateName) as FrameworkElement;
+            var track = GetTemplateChild(TrackTemplateName);
+            if (track != null)
+                _track = (FrameworkElement)track;
 
-            if (_indicator != null)
+            var glow = GetTemplateChild(GlowingRectTemplateName);
+            if (glow != null)
+                _glow = (FrameworkElement)glow;
+
+            var stripe = GetTemplateChild(StripeTemplateName);
+            if (stripe != null)
+                _stripe = (FrameworkElement)stripe;
+
+            var indicator = GetTemplateChild(IndicatorTemplateName);
+            if (indicator != null)
             {
+                _indicator = (FrameworkElement)indicator;
                 _indicator.InvalidateProperty(RenderTransformProperty);
                 _indicator.RenderTransform = _indicatorTransform;
             }
@@ -495,11 +522,46 @@ namespace WpfProgressbar
             DependencyProperty.Register("CompletedBrush", typeof(Brush), typeof(CustomProgressBar),
                                         new PropertyMetadata(new SolidColorBrush(Color.FromArgb(255, 20, 255, 255))));
 
+        public Brush TextBrush
+        {
+            get { return (Brush)GetValue(TextBrushProperty); }
+            set { SetValue(TextBrushProperty, value); }
+        }
+        public static readonly DependencyProperty TextBrushProperty =
+            DependencyProperty.Register("TextBrush", typeof(Brush), typeof(CustomProgressBar),
+                                        new PropertyMetadata(System.Windows.SystemColors.HighlightTextBrush));
+
         #endregion DependencyProperties
 
         public bool IsIndeterminate
         {
             get { return ProgressState == ProgressState.Indeterminate; }
+        }
+
+        private class PercentageConverter : IMultiValueConverter
+        {
+            public static PercentageConverter I = new PercentageConverter();
+            public object Convert(object[] value, Type type, object parameter, CultureInfo culture)
+            {
+                object result;
+                try
+                {
+                    var minimum = (double)value[0];
+                    var maximum = (double)value[1];
+                    var val = (double)value[2];
+                    result = (maximum == minimum) ? 100.0 : 100.0 * (val - minimum) / (maximum - minimum) ;
+                }
+                catch
+                {
+                    result = Binding.DoNothing;
+                }
+                return result;
+            }
+
+            public object[] ConvertBack(object value, Type[] type, object parameter, CultureInfo culture)
+            {
+                throw new NotImplementedException();
+            }
         }
     }
 }

@@ -61,15 +61,31 @@ namespace WpfProgressbar
                 double progress = 0;
                 while(progress < 100)
                 {
+                    await Task.Delay(500);
+
                     progress += rand.NextDouble() * 10;
                     if (progress > 100)
                         vm.Progress = 100;
                     else
                         vm.Progress = progress;
-
-                    await Task.Delay(500);
                 }
                 _progress = false;
+            }
+        }
+
+        private void VisibilityButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ViewModel vm)
+            {
+                switch (vm.Visibility)
+                {
+                    case Visibility.Visible:
+                        vm.Visibility = Visibility.Collapsed;
+                        break;
+                    case Visibility.Collapsed:
+                        vm.Visibility = Visibility.Visible;
+                        break;
+                }
             }
         }
     }

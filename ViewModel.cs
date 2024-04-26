@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace WpfProgressbar
 {
@@ -35,6 +36,13 @@ namespace WpfProgressbar
         {
             get { return _progressLabel; }
             set { SetProperty(ref _progressLabel, value); }
+        }
+
+        private Visibility _visibility = Visibility.Visible;
+        public Visibility Visibility
+        {
+            get { return _visibility; }
+            set { SetProperty(ref _visibility, value); }
         }
 
         public ViewModel() { }
