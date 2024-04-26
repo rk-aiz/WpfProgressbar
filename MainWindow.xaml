@@ -1,0 +1,72 @@
+﻿<Window x:Class="WpfProgressbar.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WpfProgressbar"
+        mc:Ignorable="d"
+        Background="#FF171717"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid VerticalAlignment="Center">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <local:CustomProgressBar
+            Grid.ColumnSpan="2"
+            Margin="5, 20"
+            Value="{Binding Progress}"
+            LabelText="{Binding ProgressLabel}"
+            ProgressState="{Binding ProgressState, Mode=OneWay}"/>
+
+        <local:CustomProgressBar
+            Grid.Row="1" Grid.ColumnSpan="2"
+            Margin="5, 20"
+            Foreground="#FF8050D0"
+            Background="#FFE9AFFF"
+            SmoothValue="{Binding Progress}"
+            LabelText="{Binding ProgressLabel}"
+            ProgressState="{Binding ProgressState, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+        <Button
+            Grid.Row="2"
+            Width="140"
+            Margin="10"
+            HorizontalAlignment="Right"
+            Click="ProgressStateButton_Click"
+            Content="Change ProgressState"/>
+
+        <TextBlock
+            Grid.Row="2" Grid.Column="1"
+            Margin="10"
+            HorizontalAlignment="Left"
+            Foreground="White"
+            FontSize="16"
+            Text="{Binding ProgressState, Mode=OneWay,
+                   StringFormat=(ProgressState : {0})}"/>
+
+        <Button
+            Grid.Row="3"
+            Width="140"
+            Margin="10"
+            HorizontalAlignment="Right"
+            Click="ProgressButton_Click"
+            Content="Progress 0 -> 100"/>
+
+        <TextBlock
+            Grid.Row="3" Grid.Column="1"
+            Margin="10"
+            HorizontalAlignment="Left"
+            Foreground="White"
+            FontSize="16"
+            Text="{Binding Progress,
+                   StringFormat=(Progress : {0:N2} %)}"/>
+    </Grid>
+</Window>
