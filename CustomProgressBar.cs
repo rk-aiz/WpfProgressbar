@@ -10,13 +10,8 @@ using System.Windows.Data;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using System.Reflection.Metadata;
-using System.Text.Json;
-using System.Reflection;
-using Microsoft.Windows.Themes;
-using System.Data;
-using System.Diagnostics;
 using System.Globalization;
+using System.Diagnostics;
 
 namespace WpfProgressbar
 {
@@ -53,7 +48,7 @@ namespace WpfProgressbar
 
         private static DoubleAnimationBase _completedAnimation;
 
-        private FrameworkElement _track;
+        private FrameworkElement _track; // Currently not needed.
         private FrameworkElement _indicator;
         private FrameworkElement _glow;
         private FrameworkElement _stripe;
@@ -125,7 +120,10 @@ namespace WpfProgressbar
             VerticalAlignment = VerticalAlignment.Center;
 
             IsVisibleChanged += (s, e) => { UpdateAnimation(); };
-            Loaded += (s, e) => { UpdateIndicator(); };
+            Loaded += (s, e) => {
+                UpdateIndicator();
+                UpdateAnimation();
+            };
 
             // Prepare animation clock and controller
             _stripeAnimationClock = _stripeAnimation.CreateClock();
@@ -169,8 +167,9 @@ namespace WpfProgressbar
         private static void ProgressStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             CustomProgressBar source = (CustomProgressBar)d;
-            source.UpdateAnimation();
+
             source.SetGlowElementBrush();
+            source.UpdateAnimation();
             source.UpdateCompletedBrush();
         }
 
@@ -200,7 +199,7 @@ namespace WpfProgressbar
         private bool _glowAnimating = false;
         private void UpdateIndeterminateAnimation(bool force = false)
         {
-            if (_glowTransform == null) return;
+            if (_glowTransform == null || ActualWidth == 0) return;
 
             if (!force && _glowAnimating) return;
 
@@ -216,7 +215,7 @@ namespace WpfProgressbar
                 anim.Completed += (s, e) => {
                     UpdateIndeterminateAnimation(true);
                 };
-                _glowTransform.BeginAnimation(TranslateTransform.XProperty, anim);
+                _glowTransform.BeginAnimation(TranslateTransform.XProperty, anim, HandoffBehavior.SnapshotAndReplace);
             }
             else
             {

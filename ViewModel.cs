@@ -21,7 +21,7 @@ namespace WpfProgressbar
             }
         }
 
-        private ProgressState _progressState = ProgressState.None;
+        private ProgressState _progressState = ProgressState.Indeterminate;
         public ProgressState ProgressState
         {
             get { return _progressState; }
